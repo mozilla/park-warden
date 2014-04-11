@@ -41,22 +41,27 @@ server.on("request", function(req, res) {
     var new_contributors_7_days = 0;
 
     async.doUntil(function fn(cb) {
-      redis_client.hmget([user_ids.shift(), "latestContribution", "firstContribution"], function(err, data) {
-        if (err) {
-          return cb(err);
-        }
+      var key = user_ids.shift();
+      if (/^\d+(?!contribution)$/.test(key) ) {
+        redis_client.hmget([key, "latestContribution", "firstContribution"], function(err, data) {
+          if (err) {
+            return cb(err);
+          }
 
-        var latestContribution = new Date(data[0]).valueOf();
-        var firstContribution = new Date(data[1]).valueOf();
+          var latestContribution = new Date(data[0]).valueOf();
+          var firstContribution = new Date(data[1]).valueOf();
 
-        if (!isNaN(latestContribution) && latestContribution > one_year_ago) {
-          total_active_contributors++;
-        }
-        if (!isNaN(firstContribution) && firstContribution > seven_days_ago) {
-          new_contributors_7_days++;
-        }
+          if (!isNaN(latestContribution) && latestContribution > one_year_ago) {
+            total_active_contributors++;
+          }
+          if (!isNaN(firstContribution) && firstContribution > seven_days_ago) {
+            new_contributors_7_days++;
+          }
+          cb();
+        });
+      } else {
         cb();
-      });
+      }
     }, function test() {
       return user_ids.length === 0;
     }, function done(err) {
