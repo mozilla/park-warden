@@ -12,6 +12,25 @@ var async = require("async");
 var http = require("http");
 var server = http.createServer();
 server.on("request", function(req, res) {
+
+  var date;
+  if (req.query.date) {
+    date = new Date(req.query.date);
+    if ( Object.prototype.toString.call(date) === "[object Date]" ) {
+      if ( isNaN( date.getTime() ) ) {
+        date = null;// date is not valid
+      }
+    }
+    else {
+      date = null;
+    }
+  }
+
+  if (!date) {
+    res.end('Invalid parameter: "date". Please format as 2013-12-25.');
+    return;
+  }
+
   res.writeHead(200, {
     "Content-Type": "application/json; charset=utf-8"
   });
@@ -35,9 +54,9 @@ server.on("request", function(req, res) {
       return res.end(JSON.stringify({error: err.toString()}));
     }
 
-    var one_year_ago = Date.now() - (365 * 24 * 60 * 60 * 1000);
+    var one_year_ago = date - (365 * 24 * 60 * 60 * 1000);
     var total_active_contributors = 0;
-    var seven_days_ago = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    var seven_days_ago = date - (7 * 24 * 60 * 60 * 1000);
     var new_contributors_7_days = 0;
 
     async.doUntil(function fn(cb) {
