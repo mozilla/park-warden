@@ -59,9 +59,6 @@ server.on("request", function(req, res) {
     var seven_days_ago = dateToReport.valueOf() - (7 * 24 * 60 * 60 * 1000);
     var new_contributors_7_days = 0;
 
-    console.log("one year", one_year_ago);
-    console.log("seven days", seven_days_ago);
-
     async.doUntil(function fn(cb) {
       redis_client.hmget([user_ids.shift(), "latestContribution", "firstContribution"], function(err, data) {
         if (err) {
