@@ -54,32 +54,49 @@ server.on("request", function(req, res) {
       return res.end(JSON.stringify({error: err.toString()}));
     }
 
-    var one_year_ago = dateToReport.valueOf() - (365 * 24 * 60 * 60 * 1000);
+    var one_year_ago = queryDate.valueOf() - (365 * 24 * 60 * 60 * 1000);
     var total_active_contributors = 0;
-    var seven_days_ago = dateToReport.valueOf() - (7 * 24 * 60 * 60 * 1000);
+    var seven_days_ago = queryDate.valueOf() - (7 * 24 * 60 * 60 * 1000);
     var new_contributors_7_days = 0;
 
     async.doUntil(function fn(cb) {
       var key = user_ids.shift();
       if (/^\d+(?!contribution)$/.test(key) ) {
-        redis_client.hmget([key, "latestContribution", "firstContribution"], function(err, data) {
+        redis_client.hmget([key, "firstContribution"], function(err, data) {
           if (err) {
             return cb(err);
           }
+          redis_client.smembers(key + ":contributions", function(err, setData) {
+            if (err) {
+              return cb(err);
+            }
 
-          var latestContribution = new Date(data[0]).valueOf();
-          var firstContribution = new Date(data[1]).valueOf();
+            var latestContribution;
 
-          // This will introduce errors over time. As latest contribution date will move ahead of query dates for historic data.
-          if (!isNaN(latestContribution) && (latestContribution > one_year_ago) && (latestContribution < dateToReport)) {
-            total_active_contributors++;
-          }
-          if (!isNaN(firstContribution) && (firstContribution > seven_days_ago) && (latestContribution < dateToReport)) {
-            new_contributors_7_days++;
-          }
-          cb();
+            setData.forEach(function(date) {
+              date = (new Date(date)).valueOf();
+              if ( !latestContribution ) {
+                return latestContribution = date;
+              }
+              if ( date < queryDate && date > latestContribution ) {
+                latestContribution = date;
+              }
+            });
+
+            var firstContribution = new Date(data[0]).valueOf();
+
+            // This will introduce errors over time. As latest contribution date will move ahead of query dates for historic data.
+            if (!isNaN(latestContribution) && (latestContribution > one_year_ago) && (latestContribution < queryDate)) {
+              total_active_contributors++;
+            }
+            if (!isNaN(firstContribution) && (firstContribution > seven_days_ago) && (latestContribution < queryDate)) {
+              new_contributors_7_days++;
+            }
+            cb();
+          });
         });
       } else {
+        // ignore this key
         cb();
       }
     }, function test() {
