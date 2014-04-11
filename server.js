@@ -68,6 +68,7 @@ server.on("request", function(req, res) {
         var latestContribution = new Date(data[0]).valueOf();
         var firstContribution = new Date(data[1]).valueOf();
 
+        // This will introduce errors over time. As latest contribution date will move ahead of query dates for historic data.
         if (!isNaN(latestContribution) && (latestContribution > one_year_ago) && (latestContribution < dateToReport)) {
           total_active_contributors++;
         }
