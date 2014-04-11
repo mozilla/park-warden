@@ -10,8 +10,27 @@ if (redis_url.pathname !== "/") {
 var async = require("async");
 
 var http = require("http");
+var querystring = require('querystring');
 var server = http.createServer();
 server.on("request", function(req, res) {
+
+  var query = require('url').parse(req.url).query;
+  var queryDate = querystring.parse(query).date;
+
+  if (queryDate) {
+    queryDate = new Date(queryDate);
+    if ( Object.prototype.toString.call(queryDate) === "[object Date]" ) {
+      if ( isNaN( queryDate.getTime() ) ) {
+        queryDate = null;// date is not valid
+      }
+    }
+  }
+
+  if (!queryDate) {
+    res.end('Invalid parameter: "date". Please format as YYYY-MM-DD.');
+    return;
+  }
+
   res.writeHead(200, {
     "Content-Type": "application/json; charset=utf-8"
   });
@@ -35,9 +54,9 @@ server.on("request", function(req, res) {
       return res.end(JSON.stringify({error: err.toString()}));
     }
 
-    var one_year_ago = Date.now() - (365 * 24 * 60 * 60 * 1000);
+    var one_year_ago = dateToReport.valueOf() - (365 * 24 * 60 * 60 * 1000);
     var total_active_contributors = 0;
-    var seven_days_ago = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    var seven_days_ago = dateToReport.valueOf() - (7 * 24 * 60 * 60 * 1000);
     var new_contributors_7_days = 0;
 
     async.doUntil(function fn(cb) {
@@ -49,10 +68,11 @@ server.on("request", function(req, res) {
         var latestContribution = new Date(data[0]).valueOf();
         var firstContribution = new Date(data[1]).valueOf();
 
-        if (!isNaN(latestContribution) && latestContribution > one_year_ago) {
+        // This will introduce errors over time. As latest contribution date will move ahead of query dates for historic data.
+        if (!isNaN(latestContribution) && (latestContribution > one_year_ago) && (latestContribution < dateToReport)) {
           total_active_contributors++;
         }
-        if (!isNaN(firstContribution) && firstContribution > seven_days_ago) {
+        if (!isNaN(firstContribution) && (firstContribution > seven_days_ago) && (latestContribution < dateToReport)) {
           new_contributors_7_days++;
         }
         cb();
