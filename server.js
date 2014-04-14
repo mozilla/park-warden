@@ -38,7 +38,7 @@ server.on("request", function(req, res) {
   var scan_index = 0;
   var user_ids = [];
   async.doUntil(function fn(cb) {
-    redis_client.scan(scan_index, function(err, data) {
+    redis_client.scan([scan_index, "count", 1000], function(err, data) {
       if (err) {
         return cb(err);
       }
