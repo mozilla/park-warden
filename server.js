@@ -8,27 +8,22 @@ if (redis_url.pathname !== "/") {
 }
 
 var async = require("async");
-
 var http = require("http");
 var querystring = require('querystring');
+
 var server = http.createServer();
 server.on("request", function(req, res) {
 
   var query = require('url').parse(req.url).query;
   var queryDate = querystring.parse(query).date;
+  var date;
 
   if (queryDate) {
-    queryDate = new Date(queryDate);
-    if ( Object.prototype.toString.call(queryDate) === "[object Date]" ) {
-      if ( isNaN( queryDate.getTime() ) ) {
-        queryDate = null;// date is not valid
-      }
-    }
+    date = new Date(queryDate).valueOf();
   }
 
-  if (!queryDate) {
-    res.end('Invalid parameter: "date". Please format as YYYY-MM-DD.');
-    return;
+  if (isNaN(date)) {
+    date = Date.now();
   }
 
   res.writeHead(200, {
@@ -37,8 +32,9 @@ server.on("request", function(req, res) {
 
   var scan_index = 0;
   var user_ids = [];
+
   async.doUntil(function fn(cb) {
-    redis_client.scan([scan_index, "count", 1000], function(err, data) {
+    redis_client.scan([scan_index, "count", 1000, "match", "*:contributions"], function(err, data) {
       if (err) {
         return cb(err);
       }
@@ -54,57 +50,37 @@ server.on("request", function(req, res) {
       return res.end(JSON.stringify({error: err.toString()}));
     }
 
-    var one_year_ago = queryDate.valueOf() - (365 * 24 * 60 * 60 * 1000);
+    var one_year_ago = date - (365 * 24 * 60 * 60 * 1000);
     var total_active_contributors = 0;
-    var seven_days_ago = queryDate.valueOf() - (7 * 24 * 60 * 60 * 1000);
+    var seven_days_ago = date - (7 * 24 * 60 * 60 * 1000);
     var new_contributors_7_days = 0;
 
-    async.doUntil(function fn(cb) {
-      var key = user_ids.shift();
-      if (/^\d+(?!contribution)$/.test(key) ) {
-        redis_client.hmget([key, "firstContribution"], function(err, data) {
-          if (err) {
-            return cb(err);
-          }
-          redis_client.smembers(key + ":contributions", function(err, setData) {
-            if (err) {
-              return cb(err);
-            }
+    var smembers = user_ids.map(function(uid) {
+      return ["smembers", uid];
+    });
 
-            var latestContribution;
-
-            setData.forEach(function(date) {
-              date = (new Date(date)).valueOf();
-              if ( !latestContribution ) {
-                return latestContribution = date;
-              }
-              if ( date < queryDate && date > latestContribution ) {
-                latestContribution = date;
-              }
-            });
-
-            var firstContribution = new Date(data[0]).valueOf();
-
-            // This will introduce errors over time. As latest contribution date will move ahead of query dates for historic data.
-            if (!isNaN(latestContribution) && (latestContribution > one_year_ago) && (latestContribution < queryDate)) {
-              total_active_contributors++;
-            }
-            if (!isNaN(firstContribution) && (firstContribution > seven_days_ago) && (latestContribution < queryDate)) {
-              new_contributors_7_days++;
-            }
-            cb();
-          });
-        });
-      } else {
-        // ignore this key
-        cb();
-      }
-    }, function test() {
-      return user_ids.length === 0;
-    }, function done(err) {
+    redis_client.multi(smembers).exec(function(err, replies) {
       if (err) {
         return res.end(JSON.stringify({error: err.toString()}));
       }
+
+      replies.forEach(function(contributor) {
+        if (contributor.some(function(contribution_date) {
+          var temp_date = new Date(contribution_date).valueOf();
+
+          return temp_date > one_year_ago && temp_date < date;
+        })) {
+          total_active_contributors++;
+        }
+
+        if (contributor.some(function(contribution_date) {
+          var temp_date = new Date(contribution_date).valueOf();
+
+          return temp_date > seven_days_ago && temp_date < date;
+        })) {
+          new_contributors_7_days++;
+        }
+      });
 
       res.end(JSON.stringify({
         total_active_contributors: total_active_contributors,
