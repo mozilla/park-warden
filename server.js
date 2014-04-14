@@ -13,7 +13,6 @@ var querystring = require('querystring');
 
 var server = http.createServer();
 server.on("request", function(req, res) {
-  console.time("http request");
 
   var query = require('url').parse(req.url).query;
   var queryDate = querystring.parse(query).date;
@@ -34,7 +33,6 @@ server.on("request", function(req, res) {
   var scan_index = 0;
   var user_ids = [];
 
-  console.time("scan keys");
   async.doUntil(function fn(cb) {
     redis_client.scan([scan_index, "count", 1000, "match", "*:contributions"], function(err, data) {
       if (err) {
@@ -48,9 +46,7 @@ server.on("request", function(req, res) {
   }, function test() {
     return scan_index === 0;
   }, function done(err) {
-    console.timeEnd("scan keys");
     if (err) {
-      console.timeEnd("http request");
       return res.end(JSON.stringify({error: err.toString()}));
     }
 
@@ -63,11 +59,8 @@ server.on("request", function(req, res) {
       return ["smembers", uid];
     });
 
-    console.time("fetch data");
     redis_client.multi(smembers).exec(function(err, replies) {
-      console.timeEnd("fetch data");
       if (err) {
-        console.timeEnd("http request");
         return res.end(JSON.stringify({error: err.toString()}));
       }
 
@@ -89,7 +82,6 @@ server.on("request", function(req, res) {
         }
       });
 
-      console.timeEnd("http request");
       res.end(JSON.stringify({
         total_active_contributors: total_active_contributors,
         new_contributors_7_days: new_contributors_7_days
