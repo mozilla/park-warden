@@ -11,12 +11,21 @@ var async = require("async");
 var http = require("http");
 var querystring = require('querystring');
 
+var validBuckets = [
+  "events"
+];
+
 var server = http.createServer();
 server.on("request", function(req, res) {
 
-  var query = require('url').parse(req.url).query;
-  var queryDate = querystring.parse(query).date;
+  var qs = querystring.parse(require('url').parse(req.url).query);
+  var queryDate = qs.date;
+  var bucket = qs.bucket;
   var date;
+
+  if ( validBuckets.indexOf(bucket) === -1 ) {
+    bucket = "";
+  }
 
   if (queryDate) {
     date = new Date(queryDate).valueOf();
@@ -32,9 +41,10 @@ server.on("request", function(req, res) {
 
   var scan_index = 0;
   var user_ids = [];
+  var scanPattern = bucket ? "*:contributions:" + bucket : "*:contributions";
 
   async.doUntil(function fn(cb) {
-    redis_client.scan([scan_index, "count", 1000, "match", "*:contributions"], function(err, data) {
+    redis_client.scan([scan_index, "count", 1000, "match", scanPattern], function(err, data) {
       if (err) {
         return cb(err);
       }
