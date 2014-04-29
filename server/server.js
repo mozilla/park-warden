@@ -10,26 +10,20 @@ module.exports = function(redis_client) {
     name: "park-warden"
   });
 
-  server.use(restify.queryParser());
-
-  server.get("/", function(req, res, next) {
-    var bucket = req.query.bucket;
-    var date;
-    var queryDate = req.query.date;
-
-    if ( validBuckets.indexOf(bucket) === -1 ) {
-      bucket = "";
+  server.get("/api/contributions/:bucket/:date", function(req, res, next) {
+    var bucket = req.params.bucket;
+    if (validBuckets.indexOf(bucket) === -1) {
+      return next(new restify.InvalidArgumentError("'bucket' must be one of " + validBuckets));
     }
-    if (queryDate) {
-      date = new Date(queryDate).valueOf();
-    }
+
+    var date = new Date(req.params.date).valueOf();
     if (isNaN(date)) {
-      date = Date.now();
+      return next(new restify.InvalidArgumentError("'date' must be a valid Date"));
     }
 
     var scan_index = 0;
     var user_ids = [];
-    var scanPattern = bucket ? "*:contributions:" + bucket : "*:contributions";
+    var scanPattern = "*:contributions:" + bucket;
 
     async.doUntil(function fn(cb) {
       redis_client.scan([scan_index, "count", 1000, "match", scanPattern], function(err, data) {
@@ -45,8 +39,7 @@ module.exports = function(redis_client) {
       return scan_index === 0;
     }, function done(err) {
       if (err) {
-        res.send({error: err.toString()});
-        return next();
+        return next(new restify.InternalError(err.toString()));
       }
 
       var one_year_ago = date - (365 * 24 * 60 * 60 * 1000);
@@ -60,8 +53,7 @@ module.exports = function(redis_client) {
 
       redis_client.multi(smembers).exec(function(err, replies) {
         if (err) {
-          res.send({error: err.toString()});
-          return next();
+          return next(new restify.InternalError(err.toString()));
         }
 
         replies.forEach(function(contributor) {
