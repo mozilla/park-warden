@@ -7,6 +7,7 @@ module.exports = function(redis_client) {
   });
 
   server.get("/api/contributions/:bucket/:date", routes.contributors(redis_client));
+  server.get("/api/referrers", routes.referrers(redis_client));
 
   return server;
 };

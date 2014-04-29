@@ -1,3 +1,4 @@
 module.exports = {
-  contributors: require("./contributors")
+  contributors: require("./contributors"),
+  referrers: require("./referrers")
 };
