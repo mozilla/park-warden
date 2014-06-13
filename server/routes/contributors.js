@@ -1,6 +1,7 @@
 var async = require("async");
 
 var validBuckets = [
+  "content",
   "events"
 ];
 
